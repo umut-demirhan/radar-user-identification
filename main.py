@@ -21,17 +21,14 @@ from pprint import pprint
 
 import matplotlib.pyplot as plt
 
-from sklearn.model_selection import KFold
-
 dataset_folder = r'../feb26_final_dataset'
 dataset_csv = 'session.csv'
 radar_label_filepath = lambda idx: f'{dataset_folder}/radar_label/label_{idx}.txt'
 beam_column = 'power_beam'
 
 dataset_csv = pd.read_csv(os.path.join(dataset_folder, dataset_csv))
-rng = 8
+rng = 25
 n_beams = 64
-k_folds = 10
 num_samples = len(dataset_csv)
 x_beam = dataset_csv.loc[:num_samples, beam_column].to_numpy().reshape(-1, 1) # Last sample doesn't have the label
 
@@ -356,14 +353,15 @@ font_b = {'family' : 'Arial',
 matplotlib.rc('font', **font)
 
 plt.figure()
-plt.plot(np.stack([X_beam_angle_train, X_radar_angle_train], axis=0), 'x', markersize=2, label='Training Samples')
+plt.plot(target_object_beam_angle_train, target_object_radar_angle_train, 'x', markersize=2, label='Training Samples')
 
-X_beam_angle_train_hat = X_radar_angle_train + offset
-plt.plot(X_beam_angle_train, X_beam_angle_train_hat, 'g--', label='Angle Offset', linewidth=3)
+target_object_radar_angle_train_sorted = np.sort(target_object_radar_angle_train)
+target_object_radar_angle_train_sorted_hat = target_object_radar_angle_train_sorted + offset
+plt.plot(target_object_radar_angle_train_sorted_hat, target_object_radar_angle_train_sorted, 'g--', label='Angle Offset', linewidth=3)
 
-target_object_beam_angle_train_hat = model_angle.predict(target_object_radar_angle_train.reshape((-1, 1)))
-plt.plot(target_object_beam_angle_train, target_object_beam_angle_train_hat, 'r:', label='Linear Regression', linewidth=3)
-
+X_plot_input = np.arange(target_object_radar_angle_train.min(), target_object_radar_angle_train.max()).reshape(-1, 1)
+target_object_beam_angle_train_hat = model_angle.predict(X_plot_input)
+plt.plot(X_plot_input, target_object_beam_angle_train_hat, 'r:', label='Linear Regression', linewidth=3)
 mean_angles_plt = mean_radar_angles.copy()
 mean_angles_plt[mean_angles_plt == -1000] = np.nan
 plt.plot(codebook_angles, mean_angles_plt, 'k', label='Lookup Table', linewidth=2)
@@ -375,3 +373,5 @@ plt.ylabel('Radar Angle', font=font_b)
 plt.xlim([-30, 40])
 plt.ylim([-30, 40])
 plt.show()
+
+# %%

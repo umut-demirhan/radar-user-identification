@@ -11,7 +11,7 @@ import pandas as pd
 import numpy as np
 from tqdm import tqdm
 from network_models import NetGraphGeneral
-from torchsummary import summary
+from torchinfo import summary
 from network_functions import train_loop, eval_loop, test_accuracy, find_target_obj_indices_in_samples
 from baseline import lookup_table, linear_regression, angle_offset
 import torch
@@ -21,10 +21,10 @@ from pprint import pprint
 
 import matplotlib.pyplot as plt
 
-dataset_folder = r'../feb26_final_dataset'
-dataset_csv = 'session.csv'
-radar_label_filepath = lambda idx: f'{dataset_folder}/radar_label/label_{idx}.txt'
-beam_column = 'power_beam'
+dataset_folder = r'./scenario35'
+dataset_csv = 'scenario35.csv'
+radar_label_filepath = lambda idx: f'{dataset_folder}/resources/radar_label/label_{idx}.txt'
+beam_column = 'best_beam'
 
 dataset_csv = pd.read_csv(os.path.join(dataset_folder, dataset_csv))
 rng = 25
@@ -98,18 +98,10 @@ max_num_of_objects = num_candidates.max() # Maximum number of objects in all sam
 x_beam = x_beam[existing_labels]
 
 #%% Extract sequence (unique passes) information
-# TODO: DeepSense scenario csv file already provides this information
-# -- to be removed and pulled from the csv
 
-## Adding sequence number to each sample in the dataset 
-seq_indices = dataset_csv['image_time_idx'].diff() != 1
-seq_indices.iloc[-1] = True
-indices = seq_indices[seq_indices].index
-for i in range(len(indices)-1):
-    dataset_csv.loc[indices[i]:indices[i+1], 'sequence'] = i
-##
 # Adding a column to the csv indicating the target is available
 dataset_csv['radar_label'] = existing_labels
+dataset_csv['sequence'] = dataset_csv['seq_index']-1
 
 #%%
 # Unique Sequences in Filtered Samples
@@ -183,6 +175,7 @@ test_object_filter = np.isin(object_unique_seq_idx, test_seq_ind)
 
 print(f'Number of samples: {existing_labels.sum()}, Train/Test: {train_sample_filter.sum()}/{test_sample_filter.sum()}')
 print(f'Number of objects: {num_candidates.sum()}, Train/Test: {train_object_filter.sum()}/{test_object_filter.sum()}')
+
 #%% Repeat remaining to match the number of samples (noting that each input-output pair is separate)
 x_obj_beam_idx = np.repeat(x_beam_idx, num_candidates)
 x_obj_beam_angle = np.repeat(x_beam_angle, num_candidates)
@@ -233,6 +226,33 @@ target_object_beam_angle_test = X_beam_angle_test
 target_object_radar_test = X_radar_test
 
 target_idx = find_target_obj_indices_in_samples(y_test, obj_sample_idx_test, fun='max') # Labels
+
+#%% Plot distributions of the target and other objects
+target_object_filter = y_obj_sel.astype(bool).squeeze()
+plt.figure()
+plt.hist(y_obj_avg[~target_object_filter, 0], bins=100)
+plt.hist(y_obj_avg[target_object_filter, 0])
+plt.title('Distribution of Doppler')
+plt.ylabel('Velocity (m/s)')
+plt.legend(['Candidate Objects', 'Target Object'])
+plt.show()
+
+plt.figure()
+plt.hist(y_obj_avg[~target_object_filter, 1], bins=100)
+plt.hist(y_obj_avg[target_object_filter, 1])
+plt.title('Distribution of Distance')
+plt.ylabel('Distance (m)')
+plt.legend(['Candidate Objects', 'Target Object'])
+plt.show()
+
+plt.figure()
+plt.hist(y_obj_avg[~target_object_filter, 2], bins=100)
+plt.hist(y_obj_avg[target_object_filter, 2])
+plt.title('Distribution of Angle')
+plt.ylabel('Angle (degrees)')
+plt.legend(['Candidate Objects', 'Target Object'])
+plt.show()
+
 #%%
 # Training Settings
 num_epoch = 100
@@ -263,7 +283,7 @@ net = NetGraphGeneral()
 net.to(device)
     
 # Summarize the Network Model
-summary(net, [(3,), (1,)])
+summary(net, [(2, 3), (2, 1)])
 
 # Training Settings
 criterion = torch.nn.MSELoss() # Training Criterion
@@ -352,7 +372,7 @@ font_b = {'family' : 'Arial',
 
 matplotlib.rc('font', **font)
 
-plt.figure()
+fig = plt.figure()
 plt.plot(target_object_beam_angle_train, target_object_radar_angle_train, 'x', markersize=2, label='Training Samples')
 
 target_object_radar_angle_train_sorted = np.sort(target_object_radar_angle_train)
@@ -372,6 +392,7 @@ plt.xlabel('Communication Angle', font=font_b)
 plt.ylabel('Radar Angle', font=font_b)
 plt.xlim([-30, 40])
 plt.ylim([-30, 40])
+fig.savefig('data_fig.pdf', bbox_inches='tight')
 plt.show()
 
 # %%
